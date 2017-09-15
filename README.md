@@ -10,29 +10,4 @@ $jwt = New-Jwt -Cert (Get-ChildItem cert:\CurrentUser\My)[1] -PayloadJson '{"tok
 
 Please note that in Windows, if you load signing certificate from certificate store, signing might fail, depending on CSP (the Cryptographic Service Provider) used by the key. That is specified during certificate enrollment. Run "certutil.exe -csplist -v" to check CSP capabilities; you're after "SHA-256". The Microsoft Enhanced RSA and AES Cryptographic Provider works. If you use key from PKCS12 package (PFX file), or not using Windows, that does not matter.
 
-More advanced example, real life example:
-
-$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-$cert.import("c:\ps\jwt.pfx","jwt","Exportable,PersistKeySet")
-
-$now = (Get-Date).ToUniversalTime()
-$createDate = [Math]::Floor([decimal](Get-Date($now) -UFormat "%s"))
-$expiryDate = [Math]::Floor([decimal](Get-Date($now.AddHours(1)) -UFormat "%s"))
-$rawclaims = [Ordered]@{
-    iss = "examplecom:apikey:uaqCinPt2Enb"
-    iat = $createDate
-    exp = $expiryDate
-} | ConvertTo-Json
-
-$jwt = New-Jwt -PayloadJson $rawclaims -Cert $cert
-
-$apiendpoint = "https://api.example.com/api/1.0/systems"
-
-$splat = @{
-    Method="GET"
-    Uri=$apiendpoint
-    ContentType="application/json"
-    Headers = @{authorization="bearer $jwt"}
-}
-
-Invoke-WebRequest @splat
+More advanced example, real life example is found in the PS1 file.
