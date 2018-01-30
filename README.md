@@ -7,6 +7,6 @@ The function New-Jwt creates a JWT given a claim and a signing key (and an optio
 
 ```$jwt = New-Jwt -Cert (Get-ChildItem cert:\CurrentUser\My)[1] -PayloadJson '{"token1":"value1","token2":"value2"}'```
 
-<sub><b>Please note that in Windows, if you load signing certificate from certificate store</b>, signing might fail, depending on CSP (the Cryptographic Service Provider) used by the key. That is specified during certificate enrollment. Run "certutil.exe -csplist -v" to check CSP capabilities; you're after "SHA-256". The Microsoft Enhanced RSA and AES Cryptographic Provider works. If you use key from PKCS12 package (PFX file), or not using Windows, that does not matter.</sub>
-
 More advanced example (taken directly from the code that started this effort) is found in the function help.
+
+<sub><b>Please note that in Windows, if you load signing certificate from certificate store</b>, signing might fail, depending on CSP (the Cryptographic Service Provider) used by the key. That is specified during certificate enrollment. Run "certutil.exe -csplist -v" to check CSP capabilities; you're after "SHA-256". The Microsoft Enhanced RSA and AES Cryptographic Provider works. If you use key from PKCS12 package (PFX file), or not using Windows, that does not matter.</sub>
