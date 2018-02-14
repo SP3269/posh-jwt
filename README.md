@@ -1,4 +1,4 @@
-# posh-jwt
+# Powershell JWT
 JWT (JSON Web Tokens) implementation in Powershell
 
 Many modern APIs require crytographically signed JWT token. This is to enable utilising those from Powershell. The initial testing is done using Powershell 5.1 on Windows 10. Since the .NET classes used - System.Security.Cryptography.X509Certificates.X509Certificate2, System.Text.Encoding - are in .NET Core, the code should also work in all versions of Powershell Core on Linux and Macintosh; it has been successfully tested on Ubuntu with pwsh 6.0
