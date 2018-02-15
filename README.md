@@ -7,13 +7,17 @@ Version 1.0.0 is implemented as a script module and published on Powershell Gall
 
 New-Jwt creates a JWT given a claim and a signing key (and an optional header):
 
-```$jwt = New-Jwt -Cert (Get-ChildItem cert:\CurrentUser\My)[1] -PayloadJson '{"token1":"value1","token2":"value2"}'```
+```powershell
+$jwt = New-Jwt -Cert (Get-ChildItem cert:\CurrentUser\My)[1] -PayloadJson '{"token1":"value1","token2":"value2"}'
+```
 
 Test-Jwt verifies a JWT provided certificate of the signing key:
 
-```$certx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2```
-```$certx.Import("c:\ps\jwt\jwt.cer")```
-```Test-Jwt -Jwt $jwt -Cert $certx```
+```powershell
+$certx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+$certx.Import("c:\ps\jwt\jwt.cer")
+Test-Jwt -Jwt $jwt -Cert $certx
+```
 
 More advanced example (taken directly from the code that started this effort) is found in the function help.
 
