@@ -28,8 +28,7 @@ PS Variable:\> New-Jwt -Cert $cert -PayloadJson '{"token1":"value1","token2":"va
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbjEiOiJ2YWx1ZTEiLCJ0b2tlbjIiOiJ2YWx1ZTIifQ.Kd12ryF7Uuk9Y1UWsqdSk6cXNoYZBf9GBoqcEz7R5e4ve1Kyo0WmSr-q4XEjabcbaG0hHJyNGhLDMq6BaIm-hu8ehKgDkvLXPCh15j9AzabQB4vuvSXSWV3MQO7v4Ysm7_sGJQjrmpiwRoufFePcurc94anLNk0GNkTWwG59wY4rHaaHnMXx192KnJojwMR8mK-0_Q6TJ3bK8lTrQqqavnCW9vrKoWoXkqZD_4Qhv2T6vZF7sPkUrgsytgY21xABQuyFrrNLOI1g-EdBa7n1vIyeopM4n6_Uk-ttZp-U9wpi1cgg2pRIWYV5ZT0AwZwy0QyPPx8zjh7EVRpgAKXDAg
 
 .EXAMPLE
-$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
-$cert.import("c:\ps\jwt.pfx","jwt","Exportable,PersistKeySet")
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("/mnt/c/PS/JWT/jwt.pfx","jwt")
 
 $now = (Get-Date).ToUniversalTime()
 $createDate = [Math]::Floor([decimal](Get-Date($now) -UFormat "%s"))
@@ -86,7 +85,9 @@ https://jwt.io/
         throw "There's no private key in the supplied certificate - cannot sign" 
     }
     else {
-        $sig = [Convert]::ToBase64String($rsa.SignData($toSign,"SHA256")) -replace '\+','-' -replace '/','_' -replace '=' 
+        # Overloads tested with RSACryptoServiceProvider, RSACng, RSAOpenSsl
+        try { $sig = [Convert]::ToBase64String($rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1)) -replace '\+','-' -replace '/','_' -replace '=' }
+        catch { throw "Signing with SHA256 and Pkcs1 padding failed using private key $rsa" }
     }
 
     $jwt = $jwt + '.' + $sig
@@ -136,7 +137,7 @@ https://jwt.io/
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt,
-        [Parameter(Mandatory=$true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$cert
+        [Parameter(Mandatory=$true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert
     )
 
     Write-Verbose "Verifying JWT: $jwt"
@@ -156,6 +157,6 @@ https://jwt.io/
     }
     $bytes = [Convert]::FromBase64String($signed) # Conversion completed
 
-    return $cert.PublicKey.Key.VerifyHash($computed,"SHA256",$bytes) # Returns True if the hash verifies successfully
+    return $cert.PublicKey.Key.VerifyHash($computed,$bytes,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) # Returns True if the hash verifies successfully
 
 }
