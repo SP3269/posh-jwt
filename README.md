@@ -1,9 +1,21 @@
-# Powershell JWT
-JWT (JSON Web Tokens) implementation in Powershell
+# PowerShell JWT
 
-Many modern APIs require crytographically signed JWT tokens. This module is to enable utilising those from Powershell. AFter the initial implementation using Windows Powershell 5.1, version 1.1.0 has been successfully tested on Ubuntu and on Windows 10 with Powershell Core 6.0.
+JWT (JSON Web Tokens) implementation in PowerShell
 
-The script module is published on Powershell Gallery (install with ```Install-Module JWT```). 
+Many modern APIs require crytographically signed JWT tokens. This module is to enable utilising those from PowerShell. After the initial implementation using Windows PowerShell 5.1, version 1.1.0 has been successfully tested on Ubuntu and on Windows 10 with PowerShell Core 6.0.
+
+## Getting Started
+
+The script module is published on PowerShell Gallery. If you're using PowerShell 5 or later, install with 
+```powershell
+Install-Module JWT
+``` 
+Alternatively, download the source and import the script module directly:
+```powershell
+Import-Module \\Path\to\JWT.psm1
+``` 
+
+## Usage
 
 The module provides three functions: New-Jwt, Test-Jwt (also aliased to Verify-JwtSignature), and Get-JwtPayload.
 
@@ -31,4 +43,11 @@ value1 value2
 
 More advanced examples (taken directly from the code that started this effort) are found in the functions' help.
 
-<sub><b>v. 1.0.0 note: in Windows, if you load signing certificate from certificate store</b>, signing might fail, depending on CSP (the Cryptographic Service Provider) used by the key. That is specified during certificate enrollment. Run "certutil.exe -csplist -v" to check CSP capabilities; you're after "SHA-256". The Microsoft Enhanced RSA and AES Cryptographic Provider works. Version 1.1.0 modifies the code to be compatible with RSA as well as CNG and OpenSSL</sub>
+## Compatibility Notes
+
+In Windows, CSP is the legacy mechanism for providing cryptographic services. Not all CSPs provide the necessary functions - some don't support signing with SHA-256. To list available CSPs and their capabilities, run ```certutil.exe -csplist -v``` and check for entry for SHA-256. One CSP that supports it is Microsoft Enhanced RSA and AES Cryptographic Provider. To find the CSP used for a particular key, run
+```powershell
+$cert.PrivateKey.CspKeyContainerInfo.ProviderName
+```
+
+Version 1.1.0 modifies the code to be compatible with RSA as well as CNG in WIndows and OpenSSL provider on Linux/Macintosh.
