@@ -60,18 +60,20 @@ https://jwt.io/
 #>
 
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName="RS256Params")]
     param (
         [Parameter(Mandatory=$false)][string]$Header = '{"alg":"RS256","typ":"JWT"}',
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$PayloadJson,
-        [Parameter(Mandatory=$true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert
+        [Parameter(Mandatory=$true,ParameterSetName="RS256Params")][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
+        [Parameter(Mandatory=$true,ParameterSetName="HS256Params")][byte[]]$Secret
     )
 
     Write-Verbose "Payload to sign: $PayloadJson"
-    Write-Verbose "Signing certificate: $($Cert.Subject)"
 
-    try { ConvertFrom-Json -InputObject $payloadJson -ErrorAction Stop | Out-Null } # Validating that the parameter is actually JSON - if not, generate breaking error
-    catch { throw "The supplied JWT payload is not JSON: $payloadJson" }
+    try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
+    catch { throw "The supplied JWT header is not JSON: $Header" }
+    try { ConvertFrom-Json -InputObject $PayloadJson -ErrorAction Stop | Out-Null } # Validating that the parameter is actually JSON - if not, generate breaking error
+    catch { throw "The supplied JWT payload is not JSON: $PayloadJson" }
 
     $encodedHeader = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Header)) -replace '\+','-' -replace '/','_' -replace '='
     $encodedPayload = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PayloadJson)) -replace '\+','-' -replace '/','_' -replace '='
@@ -79,15 +81,36 @@ https://jwt.io/
     $jwt = $encodedHeader + '.' + $encodedPayload # The first part of the JWT
 
     $toSign = [System.Text.Encoding]::UTF8.GetBytes($jwt)
+
+    switch($Alg.ToUpper()) {
     
-    $rsa = $Cert.PrivateKey
-    if ($null -eq $rsa) { # Requiring the private key to be present; else cannot sign!
-        throw "There's no private key in the supplied certificate - cannot sign" 
-    }
-    else {
-        # Overloads tested with RSACryptoServiceProvider, RSACng, RSAOpenSsl
-        try { $sig = [Convert]::ToBase64String($rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1)) -replace '\+','-' -replace '/','_' -replace '=' }
-        catch { throw "Signing with SHA256 and Pkcs1 padding failed using private key $rsa" }
+        "RS256" {
+            Write-Verbose "Signing certificate: $($Cert.Subject)"
+            $rsa = $Cert.PrivateKey
+            if ($null -eq $rsa) { # Requiring the private key to be present; else cannot sign!
+                throw "There's no private key in the supplied certificate - cannot sign" 
+            }
+            else {
+                # Overloads tested with RSACryptoServiceProvider, RSACng, RSAOpenSsl
+                try { $sig = [Convert]::ToBase64String($rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1)) -replace '\+','-' -replace '/','_' -replace '=' }
+                catch { throw "Signing with SHA256 and Pkcs1 padding failed using private key $rsa" }
+            }
+        }
+        "HS256" { 
+            try { 
+                $hmacsha256 = New-Object System.Security.Cryptography.HMACSHA256
+                $hmacsha256.Key = $Secret
+                $sig = [Convert]::ToBase64String($hmacsha256.ComputeHash($toSign)) -replace '\+','-' -replace '/','_' -replace '='
+            }
+            catch { throw "Signing with HMACSHA256 failed" }
+        }
+        "NONE" {
+            $sig = $null
+        }
+        default {
+            throw "The algorithm is not one of the: RS256, HS256, none"
+        }
+
     }
 
     $jwt = $jwt + '.' + $sig
