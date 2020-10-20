@@ -1,4 +1,27 @@
-﻿function New-Jwt {
+﻿function ConvertFrom-Base64UrlString {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$Base64UrlString
+    )
+    $s = $Base64UrlString.replace('-','+').replace('_','/')
+    switch ($s.Length % 4) {
+        0 { $s = $s }
+        1 { $s = $s.Substring(0,$s.Length-1) }
+        2 { $s = $s + "==" }
+        3 { $s = $s + "=" }
+    }
+    return [Convert]::FromBase64String($s) # Returning byte array - convert to string by using [System.Text.Encoding]::{{UTF8|Unicode|ASCII}}.GetString($s)
+}
+
+function ConvertTo-Base64UrlString {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$String
+    )
+    return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($String)) -replace '\+','-' -replace '/','_' -replace '='
+}
+
+function New-Jwt {
 <#
 .SYNOPSIS
 Creates a JWT (JSON Web Token).
@@ -159,33 +182,43 @@ https://jwt.io/
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt,
-        [Parameter(Mandatory=$true)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert
+        [Parameter(Mandatory=$true)][string]$jwt,
+        [Parameter(Mandatory=$false)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
+        [Parameter(Mandatory=$false)][byte[]]$Secret
     )
 
     Write-Verbose "Verifying JWT: $jwt"
-    Write-Verbose "Using certificate with subject: $($Cert.Subject)"
 
     $parts = $jwt.Split('.')
+    $Header = [System.Text.Encoding]::UTF8.GetString((ConvertFrom-Base64UrlString $Parts[0]))
+    try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
+    catch { throw "The supplied JWT header is not JSON: $Header" }
+    Write-Verbose "Algorithm: $Alg"
 
-    if ($OutputJSON) {
-        $OutputJSON.value = [Convert]::FromBase64String($parts[1].replace('-','+').replace('_','/'))
+    switch($Alg.ToUpper()) {
+
+        "RS256" {
+            $bytes = Convert-FromBase64URLString $parts[2]
+            Write-Verbose "Using certificate with subject: $($Cert.Subject)"
+            $SHA256 = New-Object Security.Cryptography.SHA256Managed
+            $computed = $SHA256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($parts[0]+"."+$parts[1])) # Computing SHA-256 hash of the JWT parts 1 and 2 - header and payload
+            return $cert.PublicKey.Key.VerifyHash($computed,$bytes,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) # Returns True if the hash verifies successfully        
+        }
+        "HS256" {
+            $hmacsha256 = New-Object System.Security.Cryptography.HMACSHA256
+            $hmacsha256.Key = $Secret
+            $signature = $hmacsha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($parts[0]+"."+$parts[1]))
+            $encoded = [Convert]::ToBase64String($signature) -replace '\+','-' -replace '/','_' -replace '=' 
+            return $encoded -eq $parts[2]
+        }
+        "NONE" {
+            return -not $parts[2] # Must not have the signature part
+        }
+        default {
+            throw "The algorithm is not one of the: RS256, HS256, none"
+        }
+
     }
-
-    $SHA256 = New-Object Security.Cryptography.SHA256Managed
-    $computed = $SHA256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($parts[0]+"."+$parts[1])) # Computing SHA-256 hash of the JWT parts 1 and 2 - header and payload
-    
-    $signed = $parts[2].replace('-','+').replace('_','/') # Decoding Base64url to the original byte array
-    $mod = $signed.Length % 4
-    switch ($mod) {
-        0 { $signed = $signed }
-        1 { $signed = $signed.Substring(0,$signed.Length-1) }
-        2 { $signed = $signed + "==" }
-        3 { $signed = $signed + "=" }
-    }
-    $bytes = [Convert]::FromBase64String($signed) # Conversion completed
-
-    return $cert.PublicKey.Key.VerifyHash($computed,$bytes,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) # Returns True if the hash verifies successfully
 
 }
 
@@ -222,26 +255,26 @@ function Get-JwtPayload {
     #>
     
     
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
-        )
-    
-        Write-Verbose "Processing JWT: $jwt"
-            
-        $parts = $jwt.Split('.')
-    
-        $payload = $parts[1].replace('-','+').replace('_','/') # Decoding Base64url to the original byte array
-        $mod = $payload.Length % 4
-        switch ($mod) {
-            # 0 { $payload = $payload } - do nothing
-            1 { $payload = $payload.Substring(0,$payload.Length-1) }
-            2 { $payload = $payload + "==" }
-            3 { $payload = $payload + "=" }
-        }
-        $bytes = [Convert]::FromBase64String($payload) # Conversion completed
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
+    )
 
-        return [System.Text.Encoding]::UTF8.GetString($bytes)
-    
+    Write-Verbose "Processing JWT: $jwt"
+        
+    $parts = $jwt.Split('.')
+
+    $payload = $parts[1].replace('-','+').replace('_','/') # Decoding Base64url to the original byte array
+    $mod = $payload.Length % 4
+    switch ($mod) {
+        # 0 { $payload = $payload } - do nothing
+        1 { $payload = $payload.Substring(0,$payload.Length-1) }
+        2 { $payload = $payload + "==" }
+        3 { $payload = $payload + "=" }
     }
+    $bytes = [Convert]::FromBase64String($payload) # Conversion completed
+
+    return [System.Text.Encoding]::UTF8.GetString($bytes)
+
+}
     
