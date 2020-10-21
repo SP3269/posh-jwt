@@ -207,7 +207,7 @@ https://jwt.io/
 
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)][string]$jwt,
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)][string]$jwt,
         [Parameter(Mandatory=$false)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
         [Parameter(Mandatory=$false)]$Secret
     )
