@@ -261,8 +261,7 @@ https://jwt.io/
 
 }
 
-
-New-Alias -Name "Verify-JwtSignature" -Value "Test-Jwt" -Description "An alias, using non-standard verb"
+Set-Alias -Name "Verify-JwtSignature" -Value "Test-Jwt" -Description "An alias, using non-standard verb"
 
 
 function Get-JwtHeader {
