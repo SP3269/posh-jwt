@@ -2,7 +2,7 @@
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$Base64UrlString,
-        [Parameter(Mandatory=$false)][bool]$AsByteArray = $false
+        [Parameter(Mandatory=$false)][switch]$AsByteArray
     )
     $s = $Base64UrlString.replace('-','+').replace('_','/')
     switch ($s.Length % 4) {
@@ -31,7 +31,7 @@ function ConvertTo-Base64UrlString {
         return [Convert]::ToBase64String($in) -replace '\+','-' -replace '/','_' -replace '='
     }
     else {
-        throw "ConvertTo-Base64UrlString requires string or byte array input"
+        throw "ConvertTo-Base64UrlString requires string or byte array input, received $($in.GetType())"
     }
 }
 
@@ -96,10 +96,10 @@ https://jwt.io/
 
 #>
 
-    [CmdletBinding(DefaultParameterSetName="RS256Params")]
+    [CmdletBinding()]
     param (
         [Parameter(Mandatory=$false)][string]$Header = '{"alg":"RS256","typ":"JWT"}',
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$PayloadJson,
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)][string]$PayloadJson,
         [Parameter(Mandatory=$false)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
         [Parameter(Mandatory=$false)]$Secret # Can be string or byte[] - checks in the code
     )
@@ -121,7 +121,7 @@ https://jwt.io/
     switch($Alg.ToUpper()) {
     
         "RS256" {
-            if (-not ($PSBoundParameters.ContainsKey("Cert")) -or ($Cert -isnot [System.Security.Cryptography.X509Certificates.X509Certificate2])) {
+            if (-not $PSBoundParameters.ContainsKey("Cert")) {
                 throw "RS256 requires -Cert parameter of type System.Security.Cryptography.X509Certificates.X509Certificate2"
             }
             Write-Verbose "Signing certificate: $($Cert.Subject)"
@@ -209,9 +209,9 @@ https://jwt.io/
     param (
         [Parameter(Mandatory=$true)][string]$jwt,
         [Parameter(Mandatory=$false)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
-        [Parameter(Mandatory=$false)][byte[]]$Secret
+        [Parameter(Mandatory=$false)]$Secret
     )
-
+    
     Write-Verbose "Verifying JWT: $jwt"
 
     $parts = $jwt.Split('.')
@@ -223,10 +223,10 @@ https://jwt.io/
     switch($Alg.ToUpper()) {
 
         "RS256" {
-            if (-not ($PSBoundParameters.ContainsKey("Cert")) -or ($Cert -isnot [System.Security.Cryptography.X509Certificates.X509Certificate2])) {
+            if (-not $PSBoundParameters.ContainsKey("Cert")) {
                 throw "RS256 requires -Cert parameter of type System.Security.Cryptography.X509Certificates.X509Certificate2"
             }
-            $bytes = Convert-FromBase64URLString $parts[2]
+            $bytes = ConvertFrom-Base64URLString $parts[2] -AsByteArray
             Write-Verbose "Using certificate with subject: $($Cert.Subject)"
             $SHA256 = New-Object Security.Cryptography.SHA256Managed
             $computed = $SHA256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($parts[0]+"."+$parts[1])) # Computing SHA-256 hash of the JWT parts 1 and 2 - header and payload
