@@ -1,7 +1,8 @@
 ﻿function ConvertFrom-Base64UrlString {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$Base64UrlString
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$Base64UrlString,
+        [Parameter(Mandatory=$false)][bool]$AsByteArray = $false
     )
     $s = $Base64UrlString.replace('-','+').replace('_','/')
     switch ($s.Length % 4) {
@@ -10,15 +11,28 @@
         2 { $s = $s + "==" }
         3 { $s = $s + "=" }
     }
-    return [Convert]::FromBase64String($s) # Returning byte array - convert to string by using [System.Text.Encoding]::{{UTF8|Unicode|ASCII}}.GetString($s)
+    if ($AsByteArray) {
+        return [Convert]::FromBase64String($s) # Returning byte array - convert to string by using [System.Text.Encoding]::{{UTF8|Unicode|ASCII}}.GetString($s)
+    }
+    else {
+        return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($s))
+    }
 }
 
 function ConvertTo-Base64UrlString {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$String
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]$in
     )
-    return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($String)) -replace '\+','-' -replace '/','_' -replace '='
+    if ($in -is [string]) {
+        return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($in)) -replace '\+','-' -replace '/','_' -replace '='
+    }
+    elseif ($in -is [byte[]]) {
+        return [Convert]::ToBase64String($in) -replace '\+','-' -replace '/','_' -replace '='
+    }
+    else {
+        throw "ConvertTo-Base64UrlString requires string or byte array input"
+    }
 }
 
 function New-Jwt {
@@ -82,13 +96,12 @@ https://jwt.io/
 
 #>
 
-
     [CmdletBinding(DefaultParameterSetName="RS256Params")]
     param (
         [Parameter(Mandatory=$false)][string]$Header = '{"alg":"RS256","typ":"JWT"}',
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$PayloadJson,
-        [Parameter(Mandatory=$true,ParameterSetName="RS256Params")][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
-        [Parameter(Mandatory=$true,ParameterSetName="HS256Params")][byte[]]$Secret
+        [Parameter(Mandatory=$false)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert,
+        [Parameter(Mandatory=$false)]$Secret # Can be string or byte[] - checks in the code
     )
 
     Write-Verbose "Payload to sign: $PayloadJson"
@@ -98,8 +111,8 @@ https://jwt.io/
     try { ConvertFrom-Json -InputObject $PayloadJson -ErrorAction Stop | Out-Null } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT payload is not JSON: $PayloadJson" }
 
-    $encodedHeader = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Header)) -replace '\+','-' -replace '/','_' -replace '='
-    $encodedPayload = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PayloadJson)) -replace '\+','-' -replace '/','_' -replace '='
+    $encodedHeader = ConvertTo-Base64UrlString $Header
+    $encodedPayload = ConvertTo-Base64UrlString $PayloadJson
 
     $jwt = $encodedHeader + '.' + $encodedPayload # The first part of the JWT
 
@@ -108,6 +121,9 @@ https://jwt.io/
     switch($Alg.ToUpper()) {
     
         "RS256" {
+            if (-not ($PSBoundParameters.ContainsKey("Cert")) -or ($Cert -isnot [System.Security.Cryptography.X509Certificates.X509Certificate2])) {
+                throw "RS256 requires -Cert parameter of type System.Security.Cryptography.X509Certificates.X509Certificate2"
+            }
             Write-Verbose "Signing certificate: $($Cert.Subject)"
             $rsa = $Cert.PrivateKey
             if ($null -eq $rsa) { # Requiring the private key to be present; else cannot sign!
@@ -115,15 +131,26 @@ https://jwt.io/
             }
             else {
                 # Overloads tested with RSACryptoServiceProvider, RSACng, RSAOpenSsl
-                try { $sig = [Convert]::ToBase64String($rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1)) -replace '\+','-' -replace '/','_' -replace '=' }
+                try { $sig = ConvertTo-Base64UrlString $rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) }
                 catch { throw "Signing with SHA256 and Pkcs1 padding failed using private key $rsa" }
             }
         }
-        "HS256" { 
+        "HS256" {
+            if (-not ($PSBoundParameters.ContainsKey("Secret"))) {
+                throw "HS256 requires -Secret parameter"
+            }
             try { 
                 $hmacsha256 = New-Object System.Security.Cryptography.HMACSHA256
-                $hmacsha256.Key = $Secret
-                $sig = [Convert]::ToBase64String($hmacsha256.ComputeHash($toSign)) -replace '\+','-' -replace '/','_' -replace '='
+                if ($Secret -is [byte[]]) {
+                    $hmacsha256.Key = $Secret
+                }
+                elseif ($Secret -is [string]) {
+                    $hmacsha256.Key = [System.Text.Encoding]::UTF8.GetBytes($Secret)
+                }
+                else {
+                    throw "Expected Secret parameter as byte array or string, instead got $($Secret.gettype())"
+                }                
+                $sig = ConvertTo-Base64UrlString $hmacsha256.ComputeHash($toSign)
             }
             catch { throw "Signing with HMACSHA256 failed" }
         }
@@ -135,11 +162,9 @@ https://jwt.io/
         }
 
     }
-
+    
     $jwt = $jwt + '.' + $sig
-
     return $jwt
-
 }
 
 
@@ -190,7 +215,7 @@ https://jwt.io/
     Write-Verbose "Verifying JWT: $jwt"
 
     $parts = $jwt.Split('.')
-    $Header = [System.Text.Encoding]::UTF8.GetString((ConvertFrom-Base64UrlString $Parts[0]))
+    $Header = ConvertFrom-Base64UrlString $Parts[0]
     try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT header is not JSON: $Header" }
     Write-Verbose "Algorithm: $Alg"
@@ -198,6 +223,9 @@ https://jwt.io/
     switch($Alg.ToUpper()) {
 
         "RS256" {
+            if (-not ($PSBoundParameters.ContainsKey("Cert")) -or ($Cert -isnot [System.Security.Cryptography.X509Certificates.X509Certificate2])) {
+                throw "RS256 requires -Cert parameter of type System.Security.Cryptography.X509Certificates.X509Certificate2"
+            }
             $bytes = Convert-FromBase64URLString $parts[2]
             Write-Verbose "Using certificate with subject: $($Cert.Subject)"
             $SHA256 = New-Object Security.Cryptography.SHA256Managed
@@ -205,10 +233,21 @@ https://jwt.io/
             return $cert.PublicKey.Key.VerifyHash($computed,$bytes,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) # Returns True if the hash verifies successfully        
         }
         "HS256" {
+            if (-not ($PSBoundParameters.ContainsKey("Secret"))) {
+                throw "HS256 requires -Secret parameter"
+            }
             $hmacsha256 = New-Object System.Security.Cryptography.HMACSHA256
-            $hmacsha256.Key = $Secret
+            if ($Secret -is [byte[]]) {
+                $hmacsha256.Key = $Secret
+            }
+            elseif ($Secret -is [string]) {
+                $hmacsha256.Key = [System.Text.Encoding]::UTF8.GetBytes($Secret)
+            }
+            else {
+                throw "Expected Secret parameter as byte array or string, instead got $($Secret.gettype())"
+            }
             $signature = $hmacsha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($parts[0]+"."+$parts[1]))
-            $encoded = [Convert]::ToBase64String($signature) -replace '\+','-' -replace '/','_' -replace '=' 
+            $encoded = ConvertTo-Base64UrlString $signature
             return $encoded -eq $parts[2]
         }
         "NONE" {
@@ -222,7 +261,51 @@ https://jwt.io/
 
 }
 
+
 New-Alias -Name "Verify-JwtSignature" -Value "Test-Jwt" -Description "An alias, using non-standard verb"
+
+
+function Get-JwtHeader {
+    <#
+    .SYNOPSIS
+    Gets JSON payload from a JWT (JSON Web Token).
+    
+    .DESCRIPTION
+    Decodes and extracts JSON payload from JWT. Ignores headers and signature.
+    
+    .PARAMETER jwt
+    Specifies the JWT. Mandatory string.
+    
+    .INPUTS
+    You can pipe JWT as a string object to Get-JwtPayload.
+    
+    .OUTPUTS
+    String. Get-JwtHeader returns decoded header part of the JWT.
+    
+    .EXAMPLE
+    
+    PS Variable:> $jwt | Get-JwtHeader -Verbose
+    VERBOSE: Processing JWT: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbjEiOiJ2YWx1ZTEiLCJ0b2tlbjIiOiJ2YWx1ZTIifQ.Kd12ryF7Uuk9Y1UWsqdSk6cXNoYZBf9GBoqcEz7R5e4ve1Kyo0WmSr-q4XEjabcbaG0hHJyNGhLDMq6BaIm-hu8ehKgDkvLXPCh15j9AzabQB4vuvSXSWV3MQO7v4Ysm7_sGJQjrmpiwRoufFePcurc94anLNk0GNkTWwG59wY4rHaaHnMXx192KnJojwMR8mK-0_Q6TJ3bK8lTrQqqavnCW9vrKoWoXkqZD_4Qhv2T6vZF7sPkUrgsytgY21xABQuyFrrNLOI1g-EdBa7n1vIyeopM4n6_Uk-ttZp-U9wpi1cgg2pRIWYV5ZT0AwZwy0QyPPx8zjh7EVRpgAKXDAg
+    {"token1":"value1","token2":"value2"}
+    
+    .LINK
+    https://github.com/SP3269/posh-jwt
+    .LINK
+    https://jwt.io/
+    
+    #>
+    
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
+    )
+
+    Write-Verbose "Processing JWT: $jwt"
+    $parts = $jwt.Split('.')
+    $payload = ConvertFrom-Base64UrlString $parts[0]
+    return $payload
+}
+
 
 function Get-JwtPayload {
     <#
@@ -232,14 +315,14 @@ function Get-JwtPayload {
     .DESCRIPTION
     Decodes and extracts JSON payload from JWT. Ignores headers and signature.
     
-    .PARAMETER Payload
+    .PARAMETER jwt
     Specifies the JWT. Mandatory string.
     
     .INPUTS
     You can pipe JWT as a string object to Get-JwtPayload.
     
     .OUTPUTS
-    String. Get-JwtPayload returns $true if the signature successfully verifies.
+    String. Get-JwtPayload returns decoded payload part of the JWT.
     
     .EXAMPLE
     
@@ -254,27 +337,13 @@ function Get-JwtPayload {
     
     #>
     
-    
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
     )
 
     Write-Verbose "Processing JWT: $jwt"
-        
     $parts = $jwt.Split('.')
-
-    $payload = $parts[1].replace('-','+').replace('_','/') # Decoding Base64url to the original byte array
-    $mod = $payload.Length % 4
-    switch ($mod) {
-        # 0 { $payload = $payload } - do nothing
-        1 { $payload = $payload.Substring(0,$payload.Length-1) }
-        2 { $payload = $payload + "==" }
-        3 { $payload = $payload + "=" }
-    }
-    $bytes = [Convert]::FromBase64String($payload) # Conversion completed
-
-    return [System.Text.Encoding]::UTF8.GetString($bytes)
-
+    $payload = ConvertFrom-Base64UrlString $parts[1]
+    return $payload
 }
-    
