@@ -44,13 +44,16 @@ Creates a JWT (JSON Web Token).
 Creates signed JWT given a signing certificate and claims in JSON.
 
 .PARAMETER Payload
-Specifies the claim to sign in JSON. Mandatory.
-
-.PARAMETER Cert
-Specifies the signing certificate. Mandatory.
+Specifies the claim to sign in JSON. Mandatory string.
 
 .PARAMETER Header
 Specifies a JWT header. Optional. Defaults to '{"alg":"RS256","typ":"JWT"}'.
+
+.PARAMETER Cert
+Specifies the signing certificate of type System.Security.Cryptography.X509Certificates.X509Certificate2. Must be specified and contain the private key if the algorithm in the header is RS256.
+
+.PARAMETER Secret
+Specifies the HMAC secret. Can be byte array, or a string, which will be converted to bytes. Must be specified if the algorithm in the header is HS256.
 
 .INPUTS
 You can pipe a string object (the JSON payload) to New-Jwt.
@@ -108,6 +111,12 @@ https://jwt.io/
 
     try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT header is not JSON: $Header" }
+    if (-not $Alg) {
+        throw "The header doesn't specify JWT algorithm: $Header"
+    }
+    else {
+        Write-Verbose "Algorithm: $Alg"
+    }  
     try { ConvertFrom-Json -InputObject $PayloadJson -ErrorAction Stop | Out-Null } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT payload is not JSON: $PayloadJson" }
 
@@ -174,13 +183,15 @@ function Test-Jwt {
 Tests cryptographic integrity of a JWT (JSON Web Token).
 
 .DESCRIPTION
-Verifies a digital signature of a JWT given a signing certificate. Assumes SHA-256 hashing algorithm. Optionally produces the original signed JSON payload.
-
-.PARAMETER Payload
-Specifies the JWT. Mandatory string.
+Verifies a digital signature of a JWT given the signing certificate (for RS256) or the secret (for HS256).
 
 .PARAMETER Cert
-Specifies the signing certificate. Mandatory X509Certificate2.
+Specifies the signing certificate of type System.Security.Cryptography.X509Certificates.X509Certificate2. 
+Must be specified if the algorithm in the header is RS256. Doesn't have to, and generally shouldn't, contain the private key.
+
+.PARAMETER Secret
+Specifies the HMAC secret. Can be byte array, or a string, which will be converted to bytes. 
+Must be specified if the algorithm in the header is HS256.
 
 .INPUTS
 You can pipe JWT as a string object to Test-Jwt.
@@ -218,7 +229,12 @@ https://jwt.io/
     $Header = ConvertFrom-Base64UrlString $Parts[0]
     try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT header is not JSON: $Header" }
-    Write-Verbose "Algorithm: $Alg"
+    if (-not $Alg) {
+        throw "The header doesn't specify JWT algorithm: $Header"
+    }
+    else {
+        Write-Verbose "Algorithm: $Alg"
+    }
 
     switch($Alg.ToUpper()) {
 
