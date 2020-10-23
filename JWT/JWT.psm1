@@ -19,6 +19,7 @@
     }
 }
 
+
 function ConvertTo-Base64UrlString {
     [CmdletBinding()]
     param (
@@ -34,6 +35,90 @@ function ConvertTo-Base64UrlString {
         throw "ConvertTo-Base64UrlString requires string or byte array input, received $($in.GetType())"
     }
 }
+
+
+function Get-JwtHeader {
+    <#
+    .SYNOPSIS
+    Gets JSON payload from a JWT (JSON Web Token).
+    
+    .DESCRIPTION
+    Decodes and extracts JSON payload from JWT. Ignores headers and signature.
+    
+    .PARAMETER jwt
+    Specifies the JWT. Mandatory string.
+    
+    .INPUTS
+    You can pipe JWT as a string object to Get-JwtHeader.
+    
+    .OUTPUTS
+    String. Get-JwtHeader returns decoded header part of the JWT.
+    
+    .EXAMPLE
+    
+    PS Variable:> Get-JwtHeader 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJqb2UiLCJyb2xlIjoiYWRtaW4ifQ.'
+    {"alg":"none","typ":"JWT"}
+    
+    .LINK
+    https://github.com/SP3269/posh-jwt
+    .LINK
+    https://jwt.io/
+    
+    #>
+    
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
+    )
+
+    Write-Verbose "Processing JWT: $jwt"
+    $parts = $jwt.Split('.')
+    $header = ConvertFrom-Base64UrlString $parts[0]
+    return $header
+}
+
+
+function Get-JwtPayload {
+    <#
+    .SYNOPSIS
+    Gets JSON payload from a JWT (JSON Web Token).
+    
+    .DESCRIPTION
+    Decodes and extracts JSON payload from JWT. Ignores headers and signature.
+    
+    .PARAMETER jwt
+    Specifies the JWT. Mandatory string.
+    
+    .INPUTS
+    You can pipe JWT as a string object to Get-JwtPayload.
+    
+    .OUTPUTS
+    String. Get-JwtPayload returns decoded payload part of the JWT.
+    
+    .EXAMPLE
+    
+    PS Variable:> $jwt | Get-JwtPayload -Verbose
+    VERBOSE: Processing JWT: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbjEiOiJ2YWx1ZTEiLCJ0b2tlbjIiOiJ2YWx1ZTIifQ.Kd12ryF7Uuk9Y1UWsqdSk6cXNoYZBf9GBoqcEz7R5e4ve1Kyo0WmSr-q4XEjabcbaG0hHJyNGhLDMq6BaIm-hu8ehKgDkvLXPCh15j9AzabQB4vuvSXSWV3MQO7v4Ysm7_sGJQjrmpiwRoufFePcurc94anLNk0GNkTWwG59wY4rHaaHnMXx192KnJojwMR8mK-0_Q6TJ3bK8lTrQqqavnCW9vrKoWoXkqZD_4Qhv2T6vZF7sPkUrgsytgY21xABQuyFrrNLOI1g-EdBa7n1vIyeopM4n6_Uk-ttZp-U9wpi1cgg2pRIWYV5ZT0AwZwy0QyPPx8zjh7EVRpgAKXDAg
+    {"token1":"value1","token2":"value2"}
+    
+    .LINK
+    https://github.com/SP3269/posh-jwt
+    .LINK
+    https://jwt.io/
+    
+    #>
+    
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
+    )
+
+    Write-Verbose "Processing JWT: $jwt"
+    $parts = $jwt.Split('.')
+    $payload = ConvertFrom-Base64UrlString $parts[1]
+    return $payload
+}
+
 
 function New-Jwt {
 <#
@@ -277,88 +362,5 @@ https://jwt.io/
 
 }
 
+
 Set-Alias -Name "Verify-JwtSignature" -Value "Test-Jwt" -Description "An alias, using non-standard verb"
-
-
-function Get-JwtHeader {
-    <#
-    .SYNOPSIS
-    Gets JSON payload from a JWT (JSON Web Token).
-    
-    .DESCRIPTION
-    Decodes and extracts JSON payload from JWT. Ignores headers and signature.
-    
-    .PARAMETER jwt
-    Specifies the JWT. Mandatory string.
-    
-    .INPUTS
-    You can pipe JWT as a string object to Get-JwtPayload.
-    
-    .OUTPUTS
-    String. Get-JwtHeader returns decoded header part of the JWT.
-    
-    .EXAMPLE
-    
-    PS Variable:> $jwt | Get-JwtHeader -Verbose
-    VERBOSE: Processing JWT: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbjEiOiJ2YWx1ZTEiLCJ0b2tlbjIiOiJ2YWx1ZTIifQ.Kd12ryF7Uuk9Y1UWsqdSk6cXNoYZBf9GBoqcEz7R5e4ve1Kyo0WmSr-q4XEjabcbaG0hHJyNGhLDMq6BaIm-hu8ehKgDkvLXPCh15j9AzabQB4vuvSXSWV3MQO7v4Ysm7_sGJQjrmpiwRoufFePcurc94anLNk0GNkTWwG59wY4rHaaHnMXx192KnJojwMR8mK-0_Q6TJ3bK8lTrQqqavnCW9vrKoWoXkqZD_4Qhv2T6vZF7sPkUrgsytgY21xABQuyFrrNLOI1g-EdBa7n1vIyeopM4n6_Uk-ttZp-U9wpi1cgg2pRIWYV5ZT0AwZwy0QyPPx8zjh7EVRpgAKXDAg
-    {"token1":"value1","token2":"value2"}
-    
-    .LINK
-    https://github.com/SP3269/posh-jwt
-    .LINK
-    https://jwt.io/
-    
-    #>
-    
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
-    )
-
-    Write-Verbose "Processing JWT: $jwt"
-    $parts = $jwt.Split('.')
-    $payload = ConvertFrom-Base64UrlString $parts[0]
-    return $payload
-}
-
-
-function Get-JwtPayload {
-    <#
-    .SYNOPSIS
-    Gets JSON payload from a JWT (JSON Web Token).
-    
-    .DESCRIPTION
-    Decodes and extracts JSON payload from JWT. Ignores headers and signature.
-    
-    .PARAMETER jwt
-    Specifies the JWT. Mandatory string.
-    
-    .INPUTS
-    You can pipe JWT as a string object to Get-JwtPayload.
-    
-    .OUTPUTS
-    String. Get-JwtPayload returns decoded payload part of the JWT.
-    
-    .EXAMPLE
-    
-    PS Variable:> $jwt | Get-JwtPayload -Verbose
-    VERBOSE: Processing JWT: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbjEiOiJ2YWx1ZTEiLCJ0b2tlbjIiOiJ2YWx1ZTIifQ.Kd12ryF7Uuk9Y1UWsqdSk6cXNoYZBf9GBoqcEz7R5e4ve1Kyo0WmSr-q4XEjabcbaG0hHJyNGhLDMq6BaIm-hu8ehKgDkvLXPCh15j9AzabQB4vuvSXSWV3MQO7v4Ysm7_sGJQjrmpiwRoufFePcurc94anLNk0GNkTWwG59wY4rHaaHnMXx192KnJojwMR8mK-0_Q6TJ3bK8lTrQqqavnCW9vrKoWoXkqZD_4Qhv2T6vZF7sPkUrgsytgY21xABQuyFrrNLOI1g-EdBa7n1vIyeopM4n6_Uk-ttZp-U9wpi1cgg2pRIWYV5ZT0AwZwy0QyPPx8zjh7EVRpgAKXDAg
-    {"token1":"value1","token2":"value2"}
-    
-    .LINK
-    https://github.com/SP3269/posh-jwt
-    .LINK
-    https://jwt.io/
-    
-    #>
-    
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)][string]$jwt
-    )
-
-    Write-Verbose "Processing JWT: $jwt"
-    $parts = $jwt.Split('.')
-    $payload = ConvertFrom-Base64UrlString $parts[1]
-    return $payload
-}
