@@ -253,12 +253,8 @@ https://jwt.io/
 
     try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT header is not JSON: $Header" }
-    if (-not $Alg) {
-        throw "The header doesn't specify JWT algorithm: $Header"
-    }
-    else {
-        Write-Verbose "Algorithm: $Alg"
-    }  
+    Write-Verbose "Algorithm: $Alg"
+
     try { ConvertFrom-Json -InputObject $PayloadJson -ErrorAction Stop | Out-Null } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT payload is not JSON: $PayloadJson" }
 
@@ -269,7 +265,7 @@ https://jwt.io/
 
     $toSign = [System.Text.Encoding]::UTF8.GetBytes($jwt)
 
-    switch($Alg.ToUpper()) {
+    switch($Alg) {
     
         "RS256" {
             if (-not $PSBoundParameters.ContainsKey("Cert")) {
@@ -305,11 +301,11 @@ https://jwt.io/
             }
             catch { throw "Signing with HMACSHA256 failed" }
         }
-        "NONE" {
+        "none" {
             $sig = $null
         }
         default {
-            throw "The algorithm is not one of the: RS256, HS256, none"
+            throw 'The algorithm is not one of the supported: "RS256", "HS256", "none"'
         }
 
     }
@@ -357,7 +353,6 @@ https://jwt.io/
 
 #>
 
-
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true, ValueFromPipeline=$true)][string]$jwt,
@@ -371,14 +366,9 @@ https://jwt.io/
     $Header = ConvertFrom-Base64UrlString $Parts[0]
     try { $Alg = (ConvertFrom-Json -InputObject $Header -ErrorAction Stop).alg } # Validating that the parameter is actually JSON - if not, generate breaking error
     catch { throw "The supplied JWT header is not JSON: $Header" }
-    if (-not $Alg) {
-        throw "The header doesn't specify JWT algorithm: $Header"
-    }
-    else {
-        Write-Verbose "Algorithm: $Alg"
-    }
+    Write-Verbose "Algorithm: $Alg"
 
-    switch($Alg.ToUpper()) {
+    switch($Alg) {
 
         "RS256" {
             if (-not $PSBoundParameters.ContainsKey("Cert")) {
@@ -408,11 +398,11 @@ https://jwt.io/
             $encoded = ConvertTo-Base64UrlString $signature
             return $encoded -eq $parts[2]
         }
-        "NONE" {
+        "none" {
             return -not $parts[2] # Must not have the signature part
         }
         default {
-            throw "The algorithm is not one of the: RS256, HS256, none"
+            throw 'The algorithm is not one of the supported: "RS256", "HS256", "none"'
         }
 
     }
