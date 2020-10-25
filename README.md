@@ -2,7 +2,7 @@
 
 JWT (JSON Web Tokens) implementation in PowerShell per [RFC7519](https://tools.ietf.org/html/rfc7519)
 
-Many modern APIs require crytographically signed JWT tokens. This module is to enable creating and verifying those from PowerShell, without using external libraries. 
+Many modern APIs require crytographically signed JWT tokens. This module is to enable creating and verifying those from PowerShell and the underlying .NET Framework, without using external libraries. 
 
 ## Getting started
 
@@ -90,10 +90,22 @@ typ                            JWT
 
 `Get-JwtPayload` decodes the payload part of the input JWT (usually JSON):
 ```
-$jwt | Get-JwtPayload | ConvertFrom-JSON
+PS /ps/jwt>  $jwt | Get-JwtPayload | ConvertFrom-JSON
 token1 token2
 ------ ------
 value1 value2
+```
+
+`ConvertFrom-Base64UrlString` is [RFC4648](https://tools.ietf.org/html/rfc4648) base64url decoder. Outputs string, or a byte array is `-AsByteArray` specified.
+```
+PS /ps/jwt> 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9' | ConvertFrom-Base64UrlString
+{"alg":"RS256","typ":"JWT"}
+```
+
+`ConvertTo-Base64UrlString` is the reverse - it's base64url encoder. Takes string or byte array input and outputs the base64url string.
+```
+PS /ps/jwt>  '{"alg":"RS256","typ":"JWT"}' | ConvertTo-Base64UrlString
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9
 ```
 
 ## Compatibility notes
@@ -113,6 +125,7 @@ $cert.PrivateKey.CspKeyContainerInfo.ProviderName
 
 ## Contributing and getting support
 
-🐞 If the code doesn't perform as expected, raise a GitHub issue. Specify the expected behaviour and the actual output/error message.
+🐞 If the code doesn't perform as expected, raise a GitHub issue. Specify the expected behaviour and the actual output/error message. Make sure you're using the latest published version of the module.
+
 🛠️ Pull requests are welcome if you want to add functionality.
 
