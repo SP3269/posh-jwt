@@ -279,7 +279,7 @@ https://jwt.io/
             else {
                 # Overloads tested with RSACryptoServiceProvider, RSACng, RSAOpenSsl
                 try { $sig = ConvertTo-Base64UrlString $rsa.SignData($toSign,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pkcs1) }
-                catch { throw "Signing with SHA256 and Pkcs1 padding failed using private key $rsa" }
+                catch { throw New-Object System.Exception -ArgumentList ("Signing with SHA256 and Pkcs1 padding failed using private key $($rsa): $_", $_.Exception) }
             }
         }
         "HS256" {
@@ -299,7 +299,7 @@ https://jwt.io/
                 }                
                 $sig = ConvertTo-Base64UrlString $hmacsha256.ComputeHash($toSign)
             }
-            catch { throw "Signing with HMACSHA256 failed" }
+            catch { throw New-Object System.Exception -ArgumentList ("Signing with HMACSHA256 failed: $_", $_.Exception) }
         }
         "none" {
             $sig = $null
