@@ -272,7 +272,13 @@ https://jwt.io/
                 throw "RS256 requires -Cert parameter of type System.Security.Cryptography.X509Certificates.X509Certificate2"
             }
             Write-Verbose "Signing certificate: $($Cert.Subject)"
+            
             $rsa = $Cert.PrivateKey
+
+            if($null -eq $rsa -and 'System.Security.Cryptography.X509Certificates.RSACertificateExtensions' -as [type]) {
+                $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($Cert)
+            }
+                        
             if ($null -eq $rsa) { # Requiring the private key to be present; else cannot sign!
                 throw "There's no private key in the supplied certificate - cannot sign" 
             }
