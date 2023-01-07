@@ -110,7 +110,7 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9
 
 ## Compatibility notes
 
-Version 1.9 was tested with Windows PowerShell 5.1 on Windows 10, as well as PowerShell 7 on Windows, Lunux (Ubuntu), and MacOS X.
+Version 1.9 was tested with Windows PowerShell 5.1 on Windows 10, as well as PowerShell 7 on Windows, Linux (Ubuntu), and MacOS X.
 
 In Windows, CSP is the legacy mechanism for providing cryptographic services. Not all CSPs provide the necessary functions - some don't support signing with SHA-256. To list available CSPs and their capabilities, run `certutil.exe -csplist -v` and check for entry for SHA-256. One CSP that supports it is Microsoft Enhanced RSA and AES Cryptographic Provider. To find the CSP used for a particular key, run
 ```powershell
